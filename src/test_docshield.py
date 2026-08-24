@@ -1,5 +1,4 @@
 import torch
-from torchgen.api.types import bfloat16T
 from transformers import AutoProcessor, AutoTokenizer, AutoModelForImageTextToText
 from qwen_vl_utils import process_vision_info
 
