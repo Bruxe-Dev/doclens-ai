@@ -21,7 +21,7 @@ print("Loading model...")
 model = AutoModelForImageTextToText.from_pretrained(
     MODEL,
     trust_remote_code=True,
-    torch_dtype= bfloat16T,
+    torch_dtype= torch.bfloat16,
     device_map= "auto"
 )
 
