@@ -1,0 +1,5 @@
+ pillow
+ transformers
+ torch
+ torchvision
+ accelerate
