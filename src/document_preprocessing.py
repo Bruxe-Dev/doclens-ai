@@ -54,6 +54,6 @@ def prepare_document_for_model(file_path: str, output_dir: str = "data/converted
         return convert_docx_to_images(file_path, output_dir)
 
 if __name__ == "__main__":
-    test_file = "data/test/sample1.pdf"
+    test_file = "data/test/Forgery-test.pdf"
     images = prepare_document_for_model(test_file)
     print("Ready-to-use image(s):", images)
