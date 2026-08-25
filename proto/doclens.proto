@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package doclens;
+
+service DocumentAnalysis {
+  rpc AnalyzeDocument (DocumentRequest) returns (DocumentReport);
+}
+
+message DocumentRequest {
+  bytes image_data = 1;
+  string document_id = 2;
+  string filename = 3;
+}
+
+message DocumentReport {
+  string document_id = 1;    // echoed back so the backend can match request/response
+  string risk_level = 2;     // "Low" / "Medium" / "High"
+  string full_report = 3;    // the finalized report text from Gemma
+}
