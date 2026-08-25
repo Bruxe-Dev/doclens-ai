@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rdoclens.proto\x12\x07\x64oclens\"L\n\x0f\x44ocumentRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\x12\x13\n\x0b\x64ocument_id\x18\x02 \x01(\t\x12\x10\n\x08\x66ilename\x18\x03 \x01(\t\"N\n\x0e\x44ocumentReport\x12\x13\n\x0b\x64ocument_id\x18\x01 \x01(\t\x12\x12\n\nrisk_level\x18\x02 \x01(\t\x12\x13\n\x0b\x66ull_report\x18\x03 \x01(\t2X\n\x10\x44ocumentAnalysis\x12\x44\n\x0f\x41nalyzeDocument\x12\x18.doclens.DocumentRequest\x1a\x17.doclens.DocumentReportb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rdoclens.proto\x12\x07\x64oclens\"L\n\x0f\x44ocumentRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\x12\x13\n\x0b\x64ocument_id\x18\x02 \x01(\t\x12\x10\n\x08\x66ilename\x18\x03 \x01(\t\"^\n\x0e\x44ocumentReport\x12\x13\n\x0b\x64ocument_id\x18\x01 \x01(\t\x12\x12\n\nrisk_level\x18\x02 \x01(\t\x12\x0e\n\x06reason\x18\x03 \x01(\t\x12\x13\n\x0b\x66ull_report\x18\x04 \x01(\t2X\n\x10\x44ocumentAnalysis\x12\x44\n\x0f\x41nalyzeDocument\x12\x18.doclens.DocumentRequest\x1a\x17.doclens.DocumentReportb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,7 +34,7 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_DOCUMENTREQUEST']._serialized_start=26
   _globals['_DOCUMENTREQUEST']._serialized_end=102
   _globals['_DOCUMENTREPORT']._serialized_start=104
-  _globals['_DOCUMENTREPORT']._serialized_end=182
-  _globals['_DOCUMENTANALYSIS']._serialized_start=184
-  _globals['_DOCUMENTANALYSIS']._serialized_end=272
+  _globals['_DOCUMENTREPORT']._serialized_end=198
+  _globals['_DOCUMENTANALYSIS']._serialized_start=200
+  _globals['_DOCUMENTANALYSIS']._serialized_end=288
 # @@protoc_insertion_point(module_scope)

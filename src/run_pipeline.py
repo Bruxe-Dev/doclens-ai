@@ -6,7 +6,7 @@ import base64
 import io
 import requests
 from PIL import Image
-import re 
+import re
 
 from document_preprocessing import prepare_document_for_model
 from ela_check import run_ela
@@ -15,10 +15,18 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 MAX_IMAGE_WIDTH = 768
 STREAM_TIMEOUT = 600
 
+
 def extract_risk_level(report_text: str) -> str:
-    """Pull out Low/Medium/High from the report text, defaulting to 'Unknown' if not found."""
-    match = re.search(r'\b(Low|Medium|High)\b', report_text)
-    return match.group(1) if match else "Unknown"
+    """Pull out the labeled risk level line, defaulting to 'Unknown' if not found."""
+    match = re.search(r'Risk Level:\s*(Low|Medium|High)', report_text, re.IGNORECASE)
+    return match.group(1).capitalize() if match else "Unknown"
+
+
+def extract_reason(report_text: str) -> str:
+    """Pull out the labeled justification, defaulting to a fallback message."""
+    match = re.search(r'Justification:\s*(.+?)(?:\n\n|\Z)', report_text, re.DOTALL)
+    return match.group(1).strip() if match else "See full report for details."
+
 
 def encode_image(image_path: str) -> str:
     with open(image_path, "rb") as f:
@@ -57,7 +65,13 @@ FORENSIC_PROMPT_TEMPLATE = """You are a document forensic analyst. Your job is t
 
 3. **ELA Assessment**: Based on the ELA data above AND your visual inspection, is the ELA signal meaningful for this specific document? Explain why or why not.
 
-4. **Risk Level**: Low / Medium / High — with a 1-2 sentence justification that references specific findings from section 2.
+4. **Risk Level**: State exactly one word — Low, Medium, or High — on its own line,
+   formatted exactly as: "Risk Level: <word>"
+
+5. **Justification**: A short 2-3 sentence explanation of WHY this document received
+   that risk level, referencing specific findings from section 2. This should be
+   understandable on its own, without reading the rest of the report. Start this
+   section with exactly: "Justification:"
 
 Be precise. Every conclusion must trace back to a specific observation. Do not say "the document looks suspicious" without saying exactly what makes it so."""
 
@@ -75,8 +89,9 @@ Mean Error: {mean_error} | Std: {std_error} | P99: {p99_error}
 --- Assessment ---
 {ela_summary}
 
---- Risk Level ---
-{risk_level}
+Risk Level: {risk_level}
+
+Justification: {reason}
 
 --- Note ---
 The AI vision model was unavailable. This report contains only automated ELA analysis.
@@ -111,11 +126,14 @@ def build_fallback_report(ela_result: dict, image_path: str) -> str:
 
     confidence = ela_result["anomaly_confidence"]
     if confidence >= 0.6:
-        risk = "High (based on ELA only — requires visual confirmation)"
+        risk = "High"
+        reason = "Based on ELA only — high anomaly confidence detected, requires visual confirmation by a human reviewer since the AI model was unavailable."
     elif confidence >= 0.3:
-        risk = "Medium (ELA inconclusive — requires visual confirmation)"
+        risk = "Medium"
+        reason = "ELA results are inconclusive — requires visual confirmation by a human reviewer since the AI model was unavailable."
     else:
-        risk = "Low (ELA shows no significant anomaly)"
+        risk = "Low"
+        reason = "ELA shows no significant compression anomaly. Note: this is an automated-only assessment since the AI model was unavailable."
 
     return FALLBACK_REPORT_TEMPLATE.format(
         filename=filename,
@@ -128,6 +146,7 @@ def build_fallback_report(ela_result: dict, image_path: str) -> str:
         p99_error=ela_result["p99_error"],
         ela_summary=ela_result["summary"],
         risk_level=risk,
+        reason=reason,
     )
 
 
@@ -180,6 +199,8 @@ def run_full_pipeline(file_path: str, model: str = "gemma3:4b") -> str:
             "image_path": image_path,
             "ela": ela_result,
             "report": report,
+            "risk_level": extract_risk_level(report),
+            "reason": extract_reason(report),
         }
         results.append(page_result)
 
@@ -188,6 +209,9 @@ def run_full_pipeline(file_path: str, model: str = "gemma3:4b") -> str:
         return results[0]["report"]
 
     # Multi-page: combine reports
+    # NOTE: for gRPC responses, use results[0]["risk_level"] / results[0]["reason"]
+    # as the top-level fields — a single risk_level can't represent multiple pages.
+    # This is a known scope gap for multi-page documents; flagged for Phase 2.
     combined = []
     for r in results:
         combined.append(f"{'='*60}")
@@ -215,3 +239,6 @@ if __name__ == "__main__":
     print("FINAL REPORT")
     print("=" * 60)
     print(report)
+    print("\n" + "=" * 60)
+    print(f"Extracted Risk Level: {extract_risk_level(report)}")
+    print(f"Extracted Reason: {extract_reason(report)}")
