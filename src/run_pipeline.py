@@ -6,6 +6,7 @@ import base64
 import io
 import requests
 from PIL import Image
+import re 
 
 from document_preprocessing import prepare_document_for_model
 from ela_check import run_ela
@@ -14,6 +15,10 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 MAX_IMAGE_WIDTH = 768
 STREAM_TIMEOUT = 600
 
+def extract_risk_level(report_text: str) -> str:
+    """Pull out Low/Medium/High from the report text, defaulting to 'Unknown' if not found."""
+    match = re.search(r'\b(Low|Medium|High)\b', report_text)
+    return match.group(1) if match else "Unknown"
 
 def encode_image(image_path: str) -> str:
     with open(image_path, "rb") as f:
