@@ -1,5 +1,5 @@
 import re
-
+import os
 
 REQUIRED_PATTERNS = {
     "date": r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b',
