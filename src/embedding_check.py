@@ -41,8 +41,9 @@ def compute_embedding_similarity(submitted_text: str, reference_text: str) -> di
 if __name__ == "__main__":
     from ocr_check import run_ocr
 
-    submitted_image = "../data/converted/Forgery-test_page1.png"
-    reference_image = "../data/converted/Forgery-test_page1.png"  
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    submitted_image = os.path.join(script_dir, "..", "data", "converted", "Forgery-test_page1.png")
+    reference_image = os.path.join(script_dir, "..", "data", "converted", "Authentic_page1.png")  
 
     submitted_text = run_ocr(submitted_image)["text"]
     reference_text = run_ocr(reference_image)["text"]
