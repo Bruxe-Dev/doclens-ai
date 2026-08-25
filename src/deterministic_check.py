@@ -49,7 +49,8 @@ def run_deterministic_checks(ocr_text: str) -> dict:
 if __name__ == "__main__":
     from ocr_check import run_ocr
 
-    test_image = "../data/converted/Forgery-test_page1.png"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    test_image = os.path.join(script_dir, "..", "data", "converted", "Forgery-test_page1.png")
     ocr_result = run_ocr(test_image)
     result = run_deterministic_checks(ocr_result["text"])
 
