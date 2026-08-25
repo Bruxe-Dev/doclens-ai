@@ -9,6 +9,10 @@ from PIL import Image
 import re
 
 from document_preprocessing import prepare_document_for_model
+from concurrent.futures import ThreadPoolExecutor
+from ocr_check import run_ocr
+from deterministic_check import run_deterministic_checks
+from embedding_check import compute_embedding_similarity
 from ela_check import run_ela
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -49,31 +53,31 @@ FORENSIC_PROMPT_TEMPLATE = """You are a document forensic analyst. Your job is t
 **Automated compression analysis (ELA):**
 - Anomaly confidence: {anomaly_confidence} ({confidence_label})
 - Spatial pattern: {spatial_type}
-- Mean error: {mean_error}, Std: {std_error}, P99: {p99_error}
 - {ela_summary}
 
-**Important context:** ELA measures JPEG compression artifacts. On digitally-native documents (typed/printed text), ELA frequently produces false positives because text edges naturally create non-uniform compression patterns. A LOW or MODERATE confidence score on a clean-looking typed document is likely an artifact, not evidence of tampering. A HIGH confidence score with a "localized" spatial pattern is more meaningful.
+**Deterministic structural validation:**
+- Completeness score: {completeness_score} (fields found / fields expected)
+- {validation_summary}
+
+**Embedding similarity to a known-authentic reference document:**
+- Similarity score: {similarity_score}
+- {similarity_interpretation}
+
+**Important context:** ELA measures JPEG compression artifacts and frequently produces false positives on digitally-native (typed/printed) documents — weight it accordingly. The structural validation and similarity scores are deterministic/reproducible and generally more reliable indicators of completeness and content-pattern match than ELA alone.
 
 **Your task — examine the document image and provide:**
 
 1. **Document Type**: What kind of document is this?
 
-2. **Visual Findings**: List each observation as a separate bullet. For each, state:
-   - What you observed
-   - Where in the document (top, middle, signature area, etc.)
-   - Whether it is normal or potentially suspicious
+2. **Visual Findings**: List each observation as a separate bullet — what you observed, where, and whether it's normal or suspicious.
 
-3. **ELA Assessment**: Based on the ELA data above AND your visual inspection, is the ELA signal meaningful for this specific document? Explain why or why not.
+3. **Synthesis**: Weigh the ELA signal, the structural validation result, and the embedding similarity together with your own visual inspection. Which pieces of evidence agree, which conflict, and how does that affect your confidence?
 
-4. **Risk Level**: State exactly one word — Low, Medium, or High — on its own line,
-   formatted exactly as: "Risk Level: <word>"
+4. **Risk Level**: State exactly one word — Low, Medium, or High — on its own line, formatted exactly as: "Risk Level: <word>"
 
-5. **Justification**: A short 2-3 sentence explanation of WHY this document received
-   that risk level, referencing specific findings from section 2. This should be
-   understandable on its own, without reading the rest of the report. Start this
-   section with exactly: "Justification:"
+5. **Justification**: A short 2-3 sentence explanation of WHY, referencing specific findings above. Start with exactly: "Justification:"
 
-Be precise. Every conclusion must trace back to a specific observation. Do not say "the document looks suspicious" without saying exactly what makes it so."""
+Be precise. Every conclusion must trace back to a specific observation."""
 
 FALLBACK_REPORT_TEMPLATE = """DocLens Forensic Analysis Report
 ================================
@@ -97,7 +101,56 @@ Justification: {reason}
 The AI vision model was unavailable. This report contains only automated ELA analysis.
 A full forensic assessment requires visual inspection by the AI model or a human reviewer."""
 
+def run_pipeline_on_image(image_path: str, reference_image_path: str = None, model: str = "gemma3:4b") -> dict:
+    if reference_image_path is None:
+        reference_image_path = os.path.join(
+            os.path.dirname(__file__), "..", "data", "converted", "Authentic-reference_page1.png"
+        )
 
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        ela_future = executor.submit(run_ela, image_path)
+        ocr_future = executor.submit(run_ocr, image_path)
+        ref_ocr_future = executor.submit(run_ocr, reference_image_path)
+
+        ela_result = ela_future.result()
+        ocr_result = ocr_future.result()
+        reference_text = ref_ocr_future.result()["text"]
+
+    # these depend on OCR text, so they run after OCR resolves,
+    # but OCR itself already ran in parallel with ELA above
+    validation_result = run_deterministic_checks(ocr_result["text"])
+    similarity_result = compute_embedding_similarity(ocr_result["text"], reference_text)
+
+    image_b64 = resize_for_model(image_path)
+    prompt = FORENSIC_PROMPT_TEMPLATE.format(
+        anomaly_confidence=f"{ela_result['anomaly_confidence']:.2f}",
+        confidence_label=ela_result["confidence_label"],
+        spatial_type=ela_result["spatial_type"],
+        ela_summary=ela_result["summary"],
+        completeness_score=validation_result["completeness_score"],
+        validation_summary=validation_result["summary"],
+        similarity_score=similarity_result["similarity_score"],
+        similarity_interpretation=similarity_result["interpretation"],
+    )
+
+    print("Calling Gemma 3 4B via Ollama...")
+    start = time.time()
+    try:
+        report = call_ollama(prompt, image_b64, model)
+        print(f"  Model responded in {time.time() - start:.1f}s")
+    except requests.exceptions.RequestException as e:
+        print(f"  Ollama unavailable: {e}")
+        report = build_fallback_report(ela_result, image_path)
+
+    return {
+        "report": report,
+        "risk_level": extract_risk_level(report),
+        "reason": extract_reason(report),
+        "ela": ela_result,
+        "validation": validation_result,
+        "similarity": similarity_result,
+    }
+    
 def call_ollama(prompt: str, image_b64: str, model: str = "gemma3:4b") -> str:
     response = requests.post(
         OLLAMA_URL,
