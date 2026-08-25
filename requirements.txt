@@ -1,5 +1,6 @@
- pillow
- transformers
- torch
- torchvision
- accelerate
+pillow
+numpy
+requests
+opencv-python
+pymupdf
+docx2pdf

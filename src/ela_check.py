@@ -2,9 +2,6 @@ from PIL import Image, ImageChops
 import numpy as np
 import os
 
-from PIL import Image, ImageChops
-import numpy as np
-import os
 
 def run_ela(image_path: str, output_dir: str = "data/converted", quality: int = 90) -> dict:
     os.makedirs(output_dir, exist_ok=True)
@@ -30,24 +27,67 @@ def run_ela(image_path: str, output_dir: str = "data/converted", quality: int = 
     std_error = float(diff_array.std())
     p99 = float(np.percentile(diff_array, 99))
 
-    # A region is "anomalous" if its error is far outside the overall spread,
-    # not just far from a possibly-tiny mean.
-    flagged = (p99 - mean_error) > (5 * std_error) and std_error > 0.5
+    # Spatial uniformity: ratio of std to mean.
+    # High ratio = error is spread uniformly (typical JPEG artifact on clean docs).
+    # Low ratio = error is concentrated in specific regions (possible edit).
+    uniformity_ratio = std_error / mean_error if mean_error > 0 else 0.0
+
+    # Anomaly strength: how far the tail extends beyond the bulk
+    tail_extension = (p99 - mean_error) / std_error if std_error > 0 else 0.0
+
+    # Confidence score (0.0 to 1.0):
+    # - Uniform compression artifacts (high uniformity_ratio) → low confidence
+    # - Localized spikes (low uniformity_ratio, high tail_extension) → high confidence
+    # - Very low mean_error (clean image) → low confidence regardless
+    if mean_error < 0.5:
+        # Very clean image — ELA is unreliable here
+        anomaly_confidence = 0.05
+        spatial_type = "clean"
+    elif uniformity_ratio > 3.0:
+        # Error is spread uniformly — likely compression artifact, not edit
+        anomaly_confidence = min(0.2, tail_extension / 30.0)
+        spatial_type = "uniform"
+    elif tail_extension > 4.0 and uniformity_ratio <= 3.0:
+        # Localized spike with non-uniform distribution — more suspicious
+        anomaly_confidence = min(0.9, 0.3 + (tail_extension - 4.0) / 10.0)
+        spatial_type = "localized"
+    else:
+        # Moderate, inconclusive
+        anomaly_confidence = 0.15
+        spatial_type = "moderate"
+
+    # Human-readable confidence label
+    if anomaly_confidence >= 0.6:
+        confidence_label = "HIGH"
+    elif anomaly_confidence >= 0.3:
+        confidence_label = "MODERATE"
+    else:
+        confidence_label = "LOW"
+
+    summary = (
+        f"ELA anomaly confidence: {confidence_label} ({anomaly_confidence:.2f}/1.0). "
+        f"Spatial pattern: {spatial_type}. "
+        f"Mean error: {mean_error:.2f}, std: {std_error:.2f}, p99: {p99:.1f}. "
+        + (
+            "Error is concentrated in specific regions — may indicate localized edits."
+            if spatial_type == "localized" else
+            "Error is spread uniformly — likely compression artifacts, not indicative of tampering."
+            if spatial_type == "uniform" else
+            "Error levels are very low — document appears clean."
+            if spatial_type == "clean" else
+            "Error pattern is inconclusive."
+        )
+    )
 
     findings = {
         "ela_image_path": ela_output_path,
         "mean_error": round(mean_error, 3),
         "std_error": round(std_error, 3),
         "p99_error": round(p99, 3),
-        "flagged": flagged,
-        "summary": (
-            f"ELA found localized high-error pixels (99th percentile {p99:.1f}) "
-            f"well outside the image's typical error spread (mean {mean_error:.2f}, "
-            f"std {std_error:.2f}) — consistent with a possibly edited region."
-            if flagged else
-            f"ELA found error levels fairly uniform across the image "
-            f"(mean {mean_error:.2f}, std {std_error:.2f}) — no strong localized anomaly."
-        )
+        "anomaly_confidence": round(anomaly_confidence, 3),
+        "confidence_label": confidence_label,
+        "spatial_type": spatial_type,
+        "summary": summary,
     }
     return findings
 
@@ -55,4 +95,5 @@ def run_ela(image_path: str, output_dir: str = "data/converted", quality: int = 
 if __name__ == "__main__":
     test_image = "data/converted/Forgery-test_page1.png"
     result = run_ela(test_image)
-    print(result)
+    for k, v in result.items():
+        print(f"  {k}: {v}")
