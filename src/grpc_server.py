@@ -5,14 +5,13 @@ import os
 import doclens_pb2
 import doclens_pb2_grpc
 
-
+from run_pipeline import run_pipeline_on_image
 
 class DocumentAnalysisServicer(doclens_pb2_grpc.DocumentAnalysisServicer):
 
     def AnalyzeDocument(self, request, context):
         print(f"Received request — document_id: {request.document_id}, filename: {request.filename}")
 
-        from run_pipeline import run_pipeline_on_image
 
         temp_path = os.path.join("..", "data", "converted", f"_incoming_{request.document_id or 'temp'}.png")
 
@@ -37,7 +36,7 @@ class DocumentAnalysisServicer(doclens_pb2_grpc.DocumentAnalysisServicer):
 
 
 def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     doclens_pb2_grpc.add_DocumentAnalysisServicer_to_server(
         DocumentAnalysisServicer(), server
     )
