@@ -104,7 +104,7 @@ A full forensic assessment requires visual inspection by the AI model or a human
 def run_pipeline_on_image(image_path: str, reference_image_path: str = None, model: str = "gemma3:4b") -> dict:
     if reference_image_path is None:
         reference_image_path = os.path.join(
-            os.path.dirname(__file__), "..", "data", "converted", "Authentic-reference_page1.png"
+            os.path.dirname(__file__), "..", "data", "converted", "Authentic_page1.png"
         )
 
     with ThreadPoolExecutor(max_workers=3) as executor:
