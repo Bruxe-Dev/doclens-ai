@@ -13,7 +13,7 @@ class DocumentAnalysisServicer(doclens_pb2_grpc.DocumentAnalysisServicer):
         print(f"Received request — document_id: {request.document_id}, filename: {request.filename}")
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        temp_path = os.path.join("..", "data", "converted", f"_incoming_{request.document_id or 'temp'}.png")
+        temp_path = os.path.join(script_dir,"..", "data", "converted", f"_incoming_{request.document_id or 'temp'}.png")
 
         try:
             with open(temp_path, "wb") as f:
